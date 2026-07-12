@@ -32,30 +32,33 @@ async def rank_candidates(request: Request):
     # Batch the query and all candidates into a single request
     texts_to_embed = [query] + candidates
     
-    # Use AI Pipe to route the embedding request
-    # Note: For OpenRouter/AI Pipe, you often need the provider prefix.
-    # If "text-embedding-3-small" throws an error, change it to "openai/text-embedding-3-small"
-    response = await client.embeddings.create(
-        input=texts_to_embed,
-        model="text-embedding-3-small" 
-    )
-    
-    # Extract the embeddings from the response 
-    embeddings = [item.embedding for item in response.data]
-    query_embedding = embeddings[0]
-    candidate_embeddings = embeddings[1:]
-    
-    # Calculate cosine similarity for each candidate
-    scores = []
-    for i, emb in enumerate(candidate_embeddings):
-        score = cosine_similarity(query_embedding, emb)
-        scores.append((score, i))
+    try:
+        # Use AI Pipe to route the embedding request with the provider prefix
+        response = await client.embeddings.create(
+            input=texts_to_embed,
+            model="openai/text-embedding-3-small" 
+        )
         
-    # Sort candidates by similarity score in descending order
-    scores.sort(key=lambda x: x[0], reverse=True)
-    
-    # Extract the original indices of the top 3 candidates
-    top_3_indices = [idx for score, idx in scores[:3]]
-    
-    # Return exactly the JSON structure the grader expects
-    return {"ranking": top_3_indices}
+        # Extract the embeddings from the response 
+        embeddings = [item.embedding for item in response.data]
+        query_embedding = embeddings[0]
+        candidate_embeddings = embeddings[1:]
+        
+        # Calculate cosine similarity for each candidate
+        scores = []
+        for i, emb in enumerate(candidate_embeddings):
+            score = cosine_similarity(query_embedding, emb)
+            scores.append((score, i))
+            
+        # Sort candidates by similarity score in descending order
+        scores.sort(key=lambda x: x[0], reverse=True)
+        
+        # Extract the original indices of the top 3 candidates
+        top_3_indices = [idx for score, idx in scores[:3]]
+        
+        # Return exactly the JSON structure the grader expects
+        return {"ranking": top_3_indices}
+        
+    except Exception as e:
+        # Catch and return any errors so the grader/Render logs show what went wrong
+        return {"error": str(e)}
